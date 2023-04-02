@@ -17,13 +17,26 @@
    requires="5.07"
    version="1.0"
    >
+<description trim="n">
+<![CDATA[
+==================== Twindow Help ====================
+Author: Gaballon
+	Commands: twin <arg>
+	--------------------
+	lock/unlock		- Locks or unlocks the window
+	show/hide		- Shows or hides the window
+	reset			- Resets window settings to default
+	debug			- Turns on debug mode
+	help			- What you are reading
+]]>
+</description>
 </plugin>
 
 <aliases>
 
 <alias
    script="twin_command"
-   match="^twin( lock| unlock| show| hide| left| right| reset)?( .*)?"
+   match="^twin( lock| unlock| show| hide| reset| debug| help)?( .*)?"
    regexp="y"
    enabled="y"
    sequence="100"
@@ -36,10 +49,10 @@
 <![CDATA[
 
 require "themed_miniwindows"
+require "tprint"
 
 function twin_command(aliasname, aliasline, wildcards)
-	--Note("twin_command function called.")
-	show_message("twin_command called with variables:\n name: " .. aliasname .. "\n line: " .. aliasline .. "\n wildcard1: " .. wildcards[1] .. "\n wildcard2: " .. wildcards[2])
+	debug_note("twin_command called with variables:\n name: " .. aliasname .. "\n line: " .. aliasline .. "\n wildcard1: " .. wildcards[1] .. "\n wildcard2: " .. wildcards[2])
 	if wildcards[1] == " lock" then
 		SetVariable("lock_down_miniwindows", "1")
 		LockStatus()
@@ -47,20 +60,30 @@ function twin_command(aliasname, aliasline, wildcards)
 		SetVariable("lock_down_miniwindows", "0")
 		LockStatus()
 	elseif wildcards[1] == " show" then
-		my_window:show()
+		show_message("Showing window.")
+		if not WindowInfo("twindow", 5) then
+			my_window:show()
+			show_window()
+		end
 	elseif wildcards[1] == " hide" then
-		my_window:hide()
-		my_window_b:hide()
-	elseif wildcards[1] == " left" then
-	
-	elseif wildcards[1] == " right" then
-	
+		show_message("Hiding window.")
+		if WindowInfo("twindow", 5) then
+			my_window:hide()
+		end
 	elseif wildcards[1] == " reset" then
-		show_message("Windows reset to default positions.")
+		show_message("Window reset to default position.")
 		my_window:reset()
-		my_window_b:reset()
+		my_window:show()
+		show_window()
+	elseif wildcards[1] == " debug" then
+		if debug_mode then debug_mode = false else debug_mode = true end
+		show_message("Debug mode set to: " .. string.upper(tostring(debug_mode)))
+	elseif wildcards[1] == " help" then
+		show_help()
 	else
 		show_message("Command not recognized.")
+		Note("")
+		show_help()
 	end
 end
 
@@ -68,12 +91,8 @@ function LockStatus()
 	show_message("Current layout lock status:" .. ((GetVariable("lock_down_miniwindows") == "1") and "LOCKED") or "UNLOCKED")
 end
 
-function create_button(wid, bid, selected_style, xposition, yposition, display_text, bcommand, bsendto, bwidth, bheight)
-	--selected_style = "STYLE_TRANSPARENT"
-	--selected_style = "STYLE_FLAT"
-	WindowFont(WINDOW_ID, "button_font", selected_font,  selected_font_size, true, false, false, false)
-	WindowFont(WINDOW_ID_B, "button_font", selected_font,  selected_font_size, true, false, false, false)
-	
+function create_button(wid, bid, xposition, yposition, display_text, bcommand, bsendto, bwidth, bheight)
+	WindowFont(WINDOW_ID, "button_font", selected_font, selected_font_size, true, false, false, false)
 	local right, bottom = wid:add_button(
 		bid, -- string, required, a unique identifier for this button
 		xposition, -- integer, optional (default is my_window.bodyleft), where to put it in the window
@@ -90,135 +109,52 @@ function create_button(wid, bid, selected_style, xposition, yposition, display_t
 		bheight, -- integer, optional, negates y_padding, manually set the button height
 		selected_style -- string, optionally one of Theme.STYLE_3D, Theme.STYLE_FLAT, Theme.STYLE_TRANSPARENT (default is flat)
 	)
-	show_message("Created button at " .. tostring(xposition) .. "x " .. tostring(yposition) .. "y with button ID: " .. tostring(bid))
+	debug_note("Created button at " .. tostring(xposition) .. "x " .. tostring(yposition) .. "y with button ID: " .. tostring(bid))
 	return right, bottom
-	
-	--[[
-	if hposition == "right" then
-		wid:add_button(bid, my_window.bodyright - xposition - default_edge, my_window.bodytop + yposition + default_edge, display_text, true, nil, nil, function(flags, button_id) if bsendto then send_command(bcommand, bsendto) end end, "button_font", nil, nil, bwidth or default_size, bheight or default_size, selected_style)
-		-- ColourNote("paleturquoise", "", "Created button on right with button ID: " .. tostring(bid))
-	elseif hposition == "middle" then
-		local selected_width = bwidth or default_size
-		wid:add_button(bid, math.floor((my_window.bodyright / 2) - (selected_width / 2)) + xposition, my_window.bodytop + yposition + default_edge, display_text, true, nil, nil, function(flags, button_id) if bsendto then send_command(bcommand, bsendto) end end, "button_font", nil, nil, bwidth or default_size, bheight or default_size, selected_style)
-		-- ColourNote("paleturquoise", "", "Created button in center with button ID: " .. tostring(bid))
-	else
-		wid:add_button(bid, my_window.bodyleft + xposition + default_edge, my_window.bodytop + yposition + default_edge, display_text, true, nil, nil, function(flags, button_id) if bsendto then send_command(bcommand, bsendto) end end, "button_font", nil, nil, bwidth or default_size, bheight or default_size, selected_style)
-		-- ColourNote("paleturquoise", "", "Created button on left with button ID: " .. tostring(bid))
-	end
-	]]
 end
 
-function show_window_a()
+function show_window()
 	my_window:blank()
 	
-	-- WindowLine(WINDOW_ID, math.floor(my_window.bodyright / 2), my_window.bodytop, math.floor(my_window.bodyright / 2), my_window.bodybottom, ColourNameToRGB("white"), 0, 2)
-	-- WindowLine(WINDOW_ID, my_window.bodyleft, math.floor(my_window.bodybottom / 2), my_window.bodyright, math.floor(my_window.bodybottom / 2), ColourNameToRGB("white"), 0, 2)
+	if align == "right" then
+		-- column one
+		local right, bottom = create_button(my_window, "minus", my_window.bodyright - default_edge - default_size_a, my_window.bodytop + default_edge, ctrl_lock and keypad_commands["Ctrl+-"] or keypad_commands["-"] or "-", ctrl_lock and "CtrlKeypadDash" or "KeypadDash", "DoCommand", default_size_a, default_size_a)
+		right, bottom = create_button(my_window, "plus", right - default_size_a, bottom + default_padding_a, ctrl_lock and keypad_commands["Ctrl++"] or keypad_commands["+"] or "+", ctrl_lock and "CtrlKeypadPlus" or "KeypadPlus", "DoCommand", default_size_a, 2 * default_size_a + default_padding_a)
+		right, bottom = create_button(my_window, "enter", right - default_size_a, bottom + default_padding_a, utils.utf8encode(8592), "enter", "command", default_size_a, 2 * default_size_a + default_padding_a)
+		-- column two
+		right, bottom = create_button(my_window, "star", my_window.bodyright - default_edge - 2 * default_size_a - default_padding_a, my_window.bodytop + default_edge, ctrl_lock and keypad_commands["Ctrl+*"] or keypad_commands["*"] or "*", ctrl_lock and "CtrlKeypadStar" or "KeypadStar", "DoCommand", default_size_a, default_size_a)
+		right, bottom = create_button(my_window, "nine", right - default_size_a, bottom + default_padding_a, ctrl_lock and keypad_commands["Ctrl+9"] or keypad_commands["9"] or "9", ctrl_lock and "CtrlKeypad9" or "Keypad9", "DoCommand", default_size_a, default_size_a)
+		right, bottom = create_button(my_window, "six", right - default_size_a, bottom + default_padding_a, ctrl_lock and keypad_commands["Ctrl+6"] or keypad_commands["6"] or "6", ctrl_lock and "CtrlKeypad6" or "Keypad6", "DoCommand", default_size_a, default_size_a)
+		right, bottom = create_button(my_window, "three", right - default_size_a, bottom + default_padding_a, ctrl_lock and keypad_commands["Ctrl+3"] or keypad_commands["3"] or "3", ctrl_lock and "CtrlKeypad3" or "Keypad3", "DoCommand", default_size_a, default_size_a)
+		right, bottom = create_button(my_window, "dot", right - default_size_a, bottom + default_padding_a, ctrl_lock and keypad_commands["Ctrl+."] or keypad_commands["."] or ".", ctrl_lock and "CtrlKeypadDot" or "KeypadDot", "DoCommand", default_size_a, default_size_a)
+		-- column three
+		right, bottom = create_button(my_window, "slash", my_window.bodyright - default_edge - 3 * default_size_a - 2 * default_padding_a, my_window.bodytop + default_edge, ctrl_lock and keypad_commands["Ctrl+/"] or keypad_commands["/"] or "/", ctrl_lock and "CtrlKeypadSlash" or "KeypadSlash", "DoCommand", default_size_a, default_size_a)
+		right, bottom = create_button(my_window, "eight", right - default_size_a, bottom + default_padding_a, ctrl_lock and keypad_commands["Ctrl+8"] or keypad_commands["8"] or "8", ctrl_lock and "CtrlKeypad8" or "Keypad8", "DoCommand", default_size_a, default_size_a)
+		right, bottom = create_button(my_window, "five", right - default_size_a, bottom + default_padding_a, ctrl_lock and keypad_commands["Ctrl+5"] or keypad_commands["5"] or "5", ctrl_lock and "CtrlKeypad5" or "Keypad5", "DoCommand", default_size_a, default_size_a)
+		right, bottom = create_button(my_window, "two", right - default_size_a, bottom + default_padding_a, ctrl_lock and keypad_commands["Ctrl+2"] or keypad_commands["2"] or "2", ctrl_lock and "CtrlKeypad2" or "Keypad2", "DoCommand", default_size_a, default_size_a)
+		-- column four
+		right, bottom = create_button(my_window, "ctrl", my_window.bodyright - default_edge - 4 * default_size_a - 3 * default_padding_a, my_window.bodytop + default_edge, "Ctrl", "Ctrl", "command", default_size_a, default_size_a)
+		ctrl_right = right
+		ctrl_bottom = bottom
+		ctrl_top = bottom - default_size_a
+		ctrl_left = right - default_size_a
+		right, bottom = create_button(my_window, "seven", right - default_size_a, bottom + default_padding_a, ctrl_lock and keypad_commands["Ctrl+7"] or keypad_commands["7"] or "7", ctrl_lock and "CtrlKeypad7" or "Keypad7", "DoCommand", default_size_a, default_size_a)
+		right, bottom = create_button(my_window, "four", right - default_size_a, bottom + default_padding_a, ctrl_lock and keypad_commands["Ctrl+4"] or keypad_commands["4"] or "4", ctrl_lock and "CtrlKeypad4" or "Keypad4", "DoCommand", default_size_a, default_size_a)
+		right, bottom = create_button(my_window, "one", right - default_size_a, bottom + default_padding_a, ctrl_lock and keypad_commands["Ctrl+1"] or keypad_commands["1"] or "1", ctrl_lock and "CtrlKeypad1" or "Keypad1", "DoCommand", default_size_a, default_size_a)
+		right, bottom = create_button(my_window, "zero", right - default_size_a, bottom + default_padding_a, ctrl_lock and keypad_commands["Ctrl+0"] or keypad_commands["0"] or "0", ctrl_lock and "CtrlKeypad0" or "Keypad0", "DoCommand", 2 * default_size_a + default_padding_a, default_size_a)
+	else
 	
-	-- column one
-	local right, bottom = create_button(my_window, "minus", "STYLE_TRANSPARENT", my_window.bodyright - default_edge - default_size_a, my_window.bodytop + default_edge, "-", "KeypadDash", "DoCommand", default_size_a, default_size_a)
-	right, bottom = create_button(my_window, "plus", "STYLE_TRANSPARENT", right - default_size_a, bottom + default_padding_a, "+", "KeypadPlus", "DoCommand", default_size_a, 2 * default_size_a + default_padding_a)
-	right, bottom = create_button(my_window, "enter", "STYLE_TRANSPARENT", right - default_size_a, bottom + default_padding_a, utils.utf8encode(8592), "enter", "command", default_size_a, 2 * default_size_a + default_padding_a)
-	-- column two
-	right, bottom = create_button(my_window, "star", "STYLE_TRANSPARENT", my_window.bodyright - default_edge - 2 * default_size_a - default_padding_a, my_window.bodytop + default_edge, "*", "KeypadStar", "DoCommand", default_size_a, default_size_a)
-	right, bottom = create_button(my_window, "nine", "STYLE_TRANSPARENT", right - default_size_a, bottom + default_padding_a, "9", "Keypad9", "DoCommand", default_size_a, default_size_a)
-	right, bottom = create_button(my_window, "six", "STYLE_TRANSPARENT", right - default_size_a, bottom + default_padding_a, "6", "Keypad6", "DoCommand", default_size_a, default_size_a)
-	right, bottom = create_button(my_window, "three", "STYLE_TRANSPARENT", right - default_size_a, bottom + default_padding_a, "6", "Keypad3", "DoCommand", default_size_a, default_size_a)
-	right, bottom = create_button(my_window, "dot", "STYLE_TRANSPARENT", right - default_size_a, bottom + default_padding_a, "6", "KeypadDot", "DoCommand", default_size_a, default_size_a)
-	-- column three
-	right, bottom = create_button(my_window, "slash", "STYLE_TRANSPARENT", my_window.bodyright - default_edge - 3 * default_size_a - 2 * default_padding_a, my_window.bodytop + default_edge, "/", "KeypadSlash", "DoCommand", default_size_a, default_size_a)
-	right, bottom = create_button(my_window, "eight", "STYLE_TRANSPARENT", right - default_size_a, bottom + default_padding_a, "8", "Keypad8", "DoCommand", default_size_a, default_size_a)
-	right, bottom = create_button(my_window, "five", "STYLE_TRANSPARENT", right - default_size_a, bottom + default_padding_a, "5", "Keypad5", "DoCommand", default_size_a, default_size_a)
-	right, bottom = create_button(my_window, "two", "STYLE_TRANSPARENT", right - default_size_a, bottom + default_padding_a, "2", "Keypad2", "DoCommand", default_size_a, default_size_a)
-	-- column four
-	right, bottom = create_button(my_window, "seven", "STYLE_TRANSPARENT", my_window.bodyright - default_edge - 4 * default_size_a - 3 * default_padding_a, my_window.bodytop + default_edge + default_padding_a + default_size_a, "7", "Keypad7", "DoCommand", default_size_a, default_size_a)
-	right, bottom = create_button(my_window, "four", "STYLE_TRANSPARENT", right - default_size_a, bottom + default_padding_a, "4", "Keypad4", "DoCommand", default_size_a, default_size_a)
-	right, bottom = create_button(my_window, "one", "STYLE_TRANSPARENT", right - default_size_a, bottom + default_padding_a, "1", "Keypad1", "DoCommand", default_size_a, default_size_a)
-	right, bottom = create_button(my_window, "zero", "STYLE_TRANSPARENT", right - default_size_a, bottom + default_padding_a, "0", "Keypad0", "DoCommand", 2 * default_size_a + default_padding_a, default_size_a)
-		
-	--[[
-	local big_button = default_size + 5
-	-- right hand button creations
-	create_button(my_window, "north", "right", big_button + 2 * default_padding + math.floor(default_size / 2), 0, "N", "north", "world", big_button, big_button)
-	create_button(my_window, "up", "right", math.floor(default_size / 2), 0, "U", "up", "world", default_size, default_size)
-	create_button(my_window, "east", "right", math.floor(big_button / 2), big_button + 2 * default_padding, "E", "east", "world", big_button, big_button)
-	create_button(my_window, "west", "right", 2 * big_button + 3 * default_padding + math.floor(default_size / 2), big_button + 2 * default_padding, "W", "west", "world", big_button, big_button)
-	create_button(my_window, "south", "right", big_button + 2 * default_padding + math.floor(default_size / 2), 2 * big_button + 3 * default_padding, "S", "south", "world", big_button, big_button)
-	create_button(my_window, "down", "right", math.floor(default_size / 2), 2 * big_button + 4 * default_padding, "D", "down", "world", default_size, default_size)
-	create_button(my_window, "uparrow", "right", math.floor(big_button / 2), 4 * big_button, utils.utf8encode(8593), "CtrlP", "DoCommand", big_button, big_button)
-	create_button(my_window, "downarrow", "right", math.floor(big_button / 2), 5 * big_button + default_padding, utils.utf8encode(8595), "CtrlN", "DoCommand", big_button, big_button)
-	create_button(my_window, "enter", "right", big_button + 2 * default_padding + math.floor(default_size / 2), 4 * big_button, utils.utf8encode(8592), "enter", "command", big_button, 2 * big_button + default_padding)
-	
-	-- center button creations
-	local space_from_top = 100
-	-- row 0
-	create_button(my_window, "six", "middle", 0, space_from_top - default_size - default_padding, "6", "6", "command")
-	create_button(my_window, "five", "middle", -(default_padding + default_size), space_from_top - default_size - default_padding, "5", "5", "command")
-	create_button(my_window, "seven", "middle", (default_padding + default_size), space_from_top - default_size - default_padding, "7", "7", "command")
-	create_button(my_window, "four", "middle", -2 * (default_padding + default_size), space_from_top - default_size - default_padding, "4", "4", "command")
-	create_button(my_window, "eight", "middle", 2 * (default_padding + default_size), space_from_top - default_size - default_padding, "8", "8", "command")
-	create_button(my_window, "three", "middle", -3 * (default_padding + default_size), space_from_top - default_size - default_padding, "3", "3", "command")
-	create_button(my_window, "nine", "middle", 3 * (default_padding + default_size), space_from_top - default_size - default_padding, "9", "9", "command")
-	create_button(my_window, "two", "middle", -4 * (default_padding + default_size), space_from_top - default_size - default_padding, "2", "2", "command")
-	create_button(my_window, "zero", "middle", 4 * (default_padding + default_size), space_from_top - default_size - default_padding, "0", "0", "command")
-	create_button(my_window, "one", "middle", -5 * (default_padding + default_size), space_from_top - default_size - default_padding, "1", "1", "command")
-	-- row 1
-	create_button(my_window, "lettery", "middle", 0, space_from_top, "y", "y", "command")
-	create_button(my_window, "lettert", "middle", -(default_padding + default_size), space_from_top, "t", "t", "command")
-	create_button(my_window, "letteru", "middle", (default_padding + default_size), space_from_top, "u", "u", "command")
-	create_button(my_window, "letterr", "middle", -2 * (default_padding + default_size), space_from_top, "r", "r", "command")
-	create_button(my_window, "letteri", "middle", 2 * (default_padding + default_size), space_from_top, "i", "i", "command")
-	create_button(my_window, "lettere", "middle", -3 * (default_padding + default_size), space_from_top, "e", "e", "command")
-	create_button(my_window, "lettero", "middle", 3 * (default_padding + default_size), space_from_top, "o", "o", "command")
-	create_button(my_window, "letterw", "middle", -4 * (default_padding + default_size), space_from_top, "w", "w", "command")
-	create_button(my_window, "letterp", "middle", 4 * (default_padding + default_size), space_from_top, "p", "p", "command")
-	create_button(my_window, "letterq", "middle", -5 * (default_padding + default_size), space_from_top, "q", "q", "command")
-	create_button(my_window, "backspace", "left", tonumber(WindowHotspotInfo(WINDOW_ID, "letterp", 3)) - default_edge + 5, space_from_top, "Bckspc", "backspace", "command", 2 * default_size)
-	-- row 2
-	create_button(my_window, "letterg", "middle", -(default_padding + math.floor(default_size * 0.5)), space_from_top + default_size + default_padding, "g", "g", "command")
-	create_button(my_window, "letterh", "middle", (default_padding + math.floor(default_size * 0.5)), space_from_top + default_size + default_padding, "h", "h", "command")
-	create_button(my_window, "letterf", "middle", -(2 * default_padding + math.floor(default_size * 1.5)), space_from_top + default_size + default_padding, "f", "f", "command")
-	create_button(my_window, "letterj", "middle", (2 * default_padding + math.floor(default_size * 1.5)), space_from_top + default_size + default_padding, "j", "j", "command")
-	create_button(my_window, "letterd", "middle", -(3 * default_padding + math.floor(default_size * 2.5)), space_from_top + default_size + default_padding, "d", "d", "command")
-	create_button(my_window, "letterk", "middle", (3 * default_padding + math.floor(default_size * 2.5)), space_from_top + default_size + default_padding, "k", "k", "command")
-	create_button(my_window, "letters", "middle", -(4 * default_padding + math.floor(default_size * 3.5)), space_from_top + default_size + default_padding, "s", "s", "command")
-	create_button(my_window, "letterl", "middle", (4 * default_padding + math.floor(default_size * 3.5)), space_from_top + default_size + default_padding, "l", "l", "command")
-	create_button(my_window, "lettera", "middle", -(5 * default_padding + math.floor(default_size * 4.5)), space_from_top + default_size + default_padding, "a", "a", "command")
-	create_button(my_window, "semicolon", "middle", (5 * default_padding + math.floor(default_size * 4.5)), space_from_top + default_size + default_padding, ";", ";", "command")
-	-- row 3	
-	create_button(my_window, "letterb", "middle", 0, space_from_top + 2 * default_size + 2 * default_padding, "b", "b", "command")
-	create_button(my_window, "letterv", "middle", -(default_padding + default_size), space_from_top + 2 * default_size + 2 * default_padding, "v", "v", "command")
-	create_button(my_window, "lettern", "middle", (default_padding + default_size), space_from_top + 2 * default_size + 2 * default_padding, "n", "n", "command")
-	create_button(my_window, "letterc", "middle", -2 * (default_padding + default_size), space_from_top + 2 * default_size + 2 * default_padding, "c", "c", "command")
-	create_button(my_window, "letterm", "middle", 2 * (default_padding + default_size), space_from_top + 2 * default_size + 2 * default_padding, "m", "m", "command")
-	create_button(my_window, "letterx", "middle", -3 * (default_padding + default_size), space_from_top + 2 * default_size + 2 * default_padding, "x", "x", "command")
-	create_button(my_window, "comma", "middle", 3 * (default_padding + default_size), space_from_top + 2 * default_size + 2 * default_padding, ",", ",", "command")
-	create_button(my_window, "letterz", "middle", -4 * (default_padding + default_size), space_from_top + 2 * default_size + 2 * default_padding, "z", "z", "command")
-	create_button(my_window, "period", "middle", 4 * (default_padding + default_size), space_from_top + 2 * default_size + 2 * default_padding, ".", ".", "command")
-	-- row 4
-	create_button(my_window, "spacebar", "middle", 0, space_from_top + 3 * default_size + 3 * default_padding, " ", " ", "command", default_size * 6, default_size - 5)
-		
-	-- left hand button creations
-	create_button(my_window, "xcp", "left", 0, math.floor(default_size / 2) + default_padding, "xcp", "xcp", "execute", big_button, big_button)
-	create_button(my_window, "go", "left", default_size + 3 * default_padding, 0, "go", "go", "execute", big_button, big_button)
-	create_button(my_window, "nx", "left", default_size + 3 * default_padding, default_size + 3 * default_padding, "nx", "nx", "execute", big_button, big_button)
-	create_button(my_window, "kk", "left", 2 * default_size + 6 * default_padding, math.floor(default_size / 2) + default_padding, "kk", "kk", "execute", big_button, big_button)
-	create_button(my_window, "qs", "left", 0, 3 * default_size, "qs", "qs", "execute", big_button, big_button)
-	create_button(my_window, "attack1", "left", 0, 4 * default_size + 3 * default_padding, "a", "a", "execute", big_button, big_button)
-	create_button(my_window, "attack2", "left", 0, 5 * default_size + 6 * default_padding, "aa", "aa", "execute", big_button, big_button)
-		
-	-- minmize button creation
-	]]
-	
+	end
+	if ctrl_lock then
+		WindowRectOp(WINDOW_ID, 2, ctrl_left, ctrl_top, ctrl_right, ctrl_bottom, ColourNameToRGB("red"))
+		debug_note("Ctrl was true, drawing rectangle on hotspot.")
+	end
 	my_window:dress_window()
 	my_window:bring_to_front()
 end
 
-function show_window_b()
-
-end
-
 function send_command(b_c, s_t)
-	-- print("Send_command called with sendto: " .. tostring(s_t) .. " and command: " .. tostring(b_c))
+	debug_note("Send_command called with sendto: " .. tostring(s_t) .. " and command: " .. tostring(b_c))
 	if s_t == "world" then
 		SendSpecial(b_c, false, false, false, false)
 	elseif s_t == "execute" then
@@ -229,7 +165,7 @@ function send_command(b_c, s_t)
 		if b_c == "enter" then
 				local command_to_execute = tostring(GetCommand())
 				Execute(command_to_execute)
-				-- Note("Executing command: " .. command_to_execute)
+				debug_note("Executing command: " .. command_to_execute)
 				SetCommand(PushCommand())
 				SelectCommand()
 		elseif b_c == "backspace" then
@@ -237,15 +173,22 @@ function send_command(b_c, s_t)
 				if string.len(command_field) > 1 and GetInfo(237) == 0 then
 					SelectCommand()
 					PasteCommand(string.sub(command_field, 1, string.len(command_field) - 1))
-					-- Note("Backspace: " .. command_field .. " -> " ..  string.sub(command_field, 1, string.len(command_field) - 1))
+					debug_note("Backspace: " .. command_field .. " -> " ..  string.sub(command_field, 1, string.len(command_field) - 1))
 				elseif string.len(command_field) > 1 and GetInfo(237) > 0 then
 					PasteCommand("")
-					-- Note("Backspace deleted delection")
+					debug_note("Backspace deleted selection")
 				else
 					SelectCommand()
 					PasteCommand("")
-					-- Note("Backspace results in clearing the command window.")
+					debug_note("Backspace results in clearing the command window.")
 				end
+		elseif b_c == "Ctrl" then
+			if ctrl_lock == true then 
+				ctrl_lock = false
+			else
+				ctrl_lock = true
+			end
+			show_window()
 		else
 			PasteCommand(b_c)
 		end
@@ -253,8 +196,7 @@ function send_command(b_c, s_t)
 end
 
 function init()
-	WINDOW_ID = GetPluginID()
-	WINDOW_ID_B = GetPluginID() .. "B"
+	WINDOW_ID = "twindow"
 
 	--default_size = tonumber(GetVariable("default_size")) or 40
 	default_size_a = 55
@@ -267,21 +209,35 @@ function init()
 	--default_width = tonumber(GetVariable("default_width")) or 1000
 	--default_height = tonumber(GetVariable("default_height")) or 300
 	selected_font = "Cooper"
-	selected_font_size = 15
+	selected_font_size = 10
+	selected_style = "STYLE_TRANSPARENT" --selected_style = "STYLE_FLAT"
 	--w_width = tonumber(GetVariable("w_width"))
 	--w_height = tonumber(GetVariable("w_height"))
 	--w_x = tonumber(GetVariable("w_x"))
 	--w_y = tonumber(GetVariable("w_y"))
-	--lock_down_miniwindows = tonumber(GetVariable("lock_down_miniwindows")) or 0
-	w_a_width = 300
-	w_a_height = 300
+	lock_down_miniwindows = tonumber(GetVariable("lock_down_miniwindows")) or 0
+	w_a_width = 275
+	w_a_height = 345
 	w_a_x = GetInfo(250) - w_a_width
-	w_a_y = GetInfo(249) - w_a_height
-	w_b_width = 600
-	w_b_height = w_a_height
-	w_b_x = w_a_x - w_b_width
-	w_b_y = w_a_y
-	lock_down_miniwindows = 0
+	w_a_y = GetInfo(249) - w_a_height - 50
+	align = "right"
+	ctrl_lock = false
+	debug_mode = false
+
+	local re = rex.new("<send>(.*)</send>")
+	keypad_commands = {}
+	for _,key in ipairs({"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "/", "*", "-", "+"}) do
+		s, e, t = re:match(ExportXML(5, key))
+		if t then
+			keypad_commands[key] = t[1]
+		end
+		ctrl_key = "Ctrl+"..key
+		s, e, t = re:match(ExportXML(5, ctrl_key))
+		if t then
+			keypad_commands[ctrl_key] = t[1]
+		end
+	end
+	--tprint(keypad_commands)	
 	
 	my_window = ThemedBasicWindow(
 		WINDOW_ID, -- id, string, required, a unique identifier for this window
@@ -301,31 +257,24 @@ function init()
 		false, -- defer_showing, boolean, optional (default is false), true will prevent the window from appearing until you call :show() on it
 		true -- body_is_transparent, boolean, optional (default is false), if true, pixels the same color as Theme.PRIMARY_BODY will be transparent
 	)
-	my_window_b = ThemedBasicWindow(
-		WINDOW_ID_B, -- id, string, required, a unique identifier for this window
-		w_b_x, -- default_left_position, integer, required, where to put it if the player hasn't moved it
-		w_b_y, -- default_top_position, integer, required, where to put it if the player hasn't moved it
-		w_b_width, -- default_width, integer, required, how big to make it if the player hasn't moved it
-		w_b_height, -- default_height, integer, required, how big to make it if the player hasn't moved it
-		nil, -- title, string, optional (nil means no titlebar), text to put into the title
-		nil, -- title_alignment, string, optional (default is "center"), "left", "center", or "right"
-		false, -- is_temporary, boolean, optional (default is false), true adds a close button in the top left
-		nil, -- resizer_type, nil/integer, optional (default is nil), nil for non-resizeable, 1 for demi, 2 for full
-		nil, -- do_while_resizing, function, optional (default is nil), display function to call while resizing
-		nil, -- do_after_resizing, function, optional (default is nil), display function to call after resizing is done
-		nil, -- do_on_delete, function, optional (default is nil), cleanup function to call when closed/deleted
-		selected_font, -- title_font_name, string, optional (default is Dina), override the default font name
-		selected_font_size, -- title_font_size, integer, optional (default is 10), override the default font size
-		true, -- defer_showing, boolean, optional (default is false), true will prevent the window from appearing until you call :show() on it
-		true -- body_is_transparent, boolean, optional (default is false), if true, pixels the same color as Theme.PRIMARY_BODY will be transparent
-	)
 	
-	show_window_a()
+	show_window()
 end
 
 function show_message(message)
 	ColourNote("violet", "", message)
-end	
+end
+
+function show_help()
+	show_message(GetPluginInfo(GetPluginID(), 3))
+end
+
+function debug_note(...)
+	local m = table.concat({...}, " ")
+	if debug_mode then
+		ColourNote("olive", "black", m)
+	end
+end
 
 function OnPluginInstall()
 	OnPluginEnable()
@@ -337,7 +286,7 @@ function OnPluginEnable()
 end
 
 function OnPluginSaveState()
-	show_message("SaveState has been called!")
+	debug_note("SaveState has been called!")
 	--[[
 	if WindowInfo(WINDOW_ID, 3) then
 		SetVariable("w_width", WindowInfo(WINDOW_ID, 3))
@@ -352,7 +301,6 @@ end
 function OnPluginDisable()
 	show_message("Twindow plugin disabled!")
 	WindowDelete(WINDOW_ID)
-	WindowDelete(WINDOW_ID_B)
 end
 
 function OnPluginClose()
